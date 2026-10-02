@@ -1,9 +1,12 @@
+use crate::num::float::{FloatLiteral, FloatSuffix};
+use crate::num::int::IntSuffix;
 use logos::Logos;
+use crate::num::int::IntLiteral;
 
 #[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Skip whitespace automatically
 #[logos(skip(r"//[^\n]*", allow_greedy = true))]   // Skip single-line comments
-pub enum Token {
+pub enum Token<'a> {
     // Keywords
     #[token("val")]
     Val,
@@ -100,14 +103,46 @@ pub enum Token {
 
     // Identifiers & Literals
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
-    Ident,
+    Ident(&'a str),
 
-    #[regex(r"[0-9]+(?:[ui](?:8|16|32|64))?")]
-    IntLit,
+    #[regex(r"[0-9]+(?:[ui](?:8|16|32|64))?", |lex| {
+        let slice = lex.slice();
+        let end = slice.find(|c: char| !c.is_ascii_digit()).unwrap_or(slice.len());
 
-    #[regex(r"[0-9]+\.[0-9]+(?:f(?:32|64))?")]
-    FloatLit,
+        let value = slice[..end].parse::<i64>().unwrap();
+
+        let suffix = match &slice[end..] {
+            "u8"  => IntSuffix::U8,
+            "u16" => IntSuffix::U16,
+            "u32" => IntSuffix::U32,
+            "u64" => IntSuffix::U64,
+            "i8"  => IntSuffix::I8,
+            "i16" => IntSuffix::I16,
+            "i32" => IntSuffix::I32,
+            "i64" => IntSuffix::I64,
+            _     => IntSuffix::None,
+        };
+
+        Some(IntLiteral { value, suffix })
+    })]
+    IntLit(IntLiteral),
+
+    #[regex(r"[0-9]+\.[0-9]+(?:f(?:32|64))?", |lex| {
+        let slice = lex.slice();
+        let end = slice.find(|c: char| !c.is_ascii_digit()).unwrap_or(slice.len());
+
+        let value = slice[..end].parse::<f64>().unwrap();
+
+        let suffix = match &slice[end..] {
+            "f32"  => FloatSuffix::F32,
+            "f64" => FloatSuffix::F64,
+            _     => FloatSuffix::None,
+        };
+
+        Some(FloatLiteral { value, suffix })
+    })]
+    FloatLit(FloatLiteral),
 
     #[regex(r#""[^"\\]*(\\.[^"\\]*)*""#)]
-    StringLit,
+    StringLit(&'a str),
 }
