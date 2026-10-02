@@ -1,0 +1,106 @@
+import "std::io.et"
+import "std::gpu.et"
+// Clean GPU Struct representing a pair of 64-bit vector elements
+// Enforces zero byte-padding, strictly compliant with @gpu layout rules
+struct #VectorPair {
+    a: @gpu::f64,
+    b: @gpu::f64,
+}
+impl #VectorPair {
+    @f64
+    fn multiply_elements() {
+        this.a * this.b
+    }
+    @#VectorPair
+    @f64(a, b)
+    static::fn new(a, b) {
+        #VectorPair { a: a, b: b }
+    }
+}
+// Custom Macro attribute targeting the kernel.
+// If the macro pass leaves the TokenStream un-mutated, it defaults to returning f64.
+@return_annotation::f64
+kernel(g_id, l_id, w_id) fn dot_product_kernel(
+    #pairs: @storage []#VectorPair,
+    #partial_sums: @storage []f64,
+    val vector_length: u32
+) {
+    val global_idx = g_id.x
+    val local_idx = l_id.x
+    // Allocate high-speed Workgroup Shared VRAM (256 threads per workgroup)
+    var #shared_cache: @workgroup [256]f64
+    // Step 1: Element-wise multiply via explicit method call
+    // Uses mandatory parens so `pair` pipes into `multiply_elements()` as `this`
+    val initial_prod = if (global_idx < vector_length) {
+        val pair = #pairs[global_idx]
+        pair |> pair.multiply_elements()
+    } else {
+        0.0f64
+    }
+    // Pipe initial product into workgroup shared memory
+    initial_prod |> #shared_cache[local_idx]
+    // Synchronize all threads within the workgroup before starting tree reduction
+    #barrier();
+    // Step 2: In-place Parallel Tree Reduction in Shared Memory
+    // Shrinks 256 elements down to 1 in O(log2 N) workgroup steps
+    var #stride: u32 = 128u32
+    while (#stride > 0u32) {
+        if (local_idx < #stride) {
+            val neighbor_val = #shared_cache[local_idx + #stride]
+            val current_val = #shared_cache[local_idx]
+
+            // Re-assignment requires mandatory piping
+            current_val + neighbor_val |> #shared_cache[local_idx]
+        }
+
+        // Wait for all threads to finish updating their local cache slot
+        #barrier();
+
+        // Reduce stride using right shift via functional pipe
+        #stride / 2u32 |> #stride
+    }
+    // Step 3: Thread 0 writes the workgroup's total sum to global VRAM
+    if (local_idx == 0u32) {
+        #shared_cache[0] |> #partial_sums[w_id.x]
+    }
+}
+// Host CPU Orchestrator Program
+pub fn main() {
+    val N = 1048576u32 // 1 Million elements
+    val workgroup_size = 256u32
+    val grid_size = N / workgroup_size // 4096 workgroups
+    // Allocate and initialize input vectors on Host CPU
+    var host_pairs = []#VectorPair
+    for (i in 0..N) {
+        val pair = #VectorPair::new(1.5f64, 2.0f64)
+        pair |> host_pairs.push()
+    }
+    // Upload host vector buffer to GPU VRAM
+    val gpu_pairs_buffer = host_pairs |> gpu::upload()
+    val gpu_out_buffer = gpu::allocate_storage[f64](grid_size)
+    io::println("Launching GPU Parallel Reduction Kernel...")
+    // ASYNC DISPATCH: Non-blocking enqueue. Returns a GpuFuture handle instantly.
+    #dot_product_kernel.dispatch(grid = [grid_size, 1, 1])(
+        gpu_pairs_buffer,
+        gpu_out_buffer,
+        N
+    ) |> val async_handle
+    // CPU can perform arbitrary concurrent computations here...
+    io::println("CPU orchestrator active while GPU reduces memory...")
+    // SYNC DISPATCH: Trailing '|' issues a host CPU fence-wait, stalling
+    // until GPU execution completes, then piping mapped output directly.
+    #dot_product_kernel.dispatch(grid = [grid_size, 1, 1])(
+        gpu_pairs_buffer,
+        gpu_out_buffer,
+        N
+    ) |
+      |> val reduced_partials
+    // Final CPU-side aggregation of workgroup partial sums
+    var final_dot_product: f64 = 0.0f64
+    for (sum in reduced_partials) {
+        final_dot_product + sum |> final_dot_product
+    }
+    // Output final scalar result
+    "Final Dot Product Result: " |> io::print()
+    final_dot_product |> io::println()
+}

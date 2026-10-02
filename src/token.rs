@@ -1,12 +1,18 @@
+use lasso::{Rodeo, Spur};
 use crate::num::float::{FloatLiteral, FloatSuffix};
 use crate::num::int::IntSuffix;
 use logos::Logos;
 use crate::num::int::IntLiteral;
 
+pub struct Extras {
+    pub rodeo: Rodeo
+}
+
 #[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Skip whitespace automatically
 #[logos(skip(r"//[^\n]*", allow_greedy = true))]   // Skip single-line comments
-pub enum Token<'a> {
+#[logos(extras = Extras)]
+pub enum Token {
     // Keywords
     #[token("val")]
     Val,
@@ -36,6 +42,10 @@ pub enum Token<'a> {
     Pub,
     #[token("internal")]
     Internal,
+    #[token("true")]
+    True,
+    #[token("false")]
+    False,
 
     // Prefixes & Operators
     #[token("#")]
@@ -102,8 +112,10 @@ pub enum Token<'a> {
     Semicolon,
 
     // Identifiers & Literals
-    #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
-    Ident(&'a str),
+    #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| {
+        lex.extras.rodeo.get_or_intern(lex.slice())
+    })]
+    Ident(Spur),
 
     #[regex(r"[0-9]+(?:[ui](?:8|16|32|64))?", |lex| {
         let slice = lex.slice();
@@ -143,6 +155,8 @@ pub enum Token<'a> {
     })]
     FloatLit(FloatLiteral),
 
-    #[regex(r#""[^"\\]*(\\.[^"\\]*)*""#)]
-    StringLit(&'a str),
+    #[regex(r#""[^"\\]*(\\.[^"\\]*)*""#, |lex| {
+        lex.extras.rodeo.get_or_intern(lex.slice())
+    })]
+    StringLit(Spur),
 }
