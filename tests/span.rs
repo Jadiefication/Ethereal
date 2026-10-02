@@ -21,7 +21,10 @@ fn test_span_equality_and_inequality() {
 
 #[test]
 fn test_span_clone_and_copy_semantics() {
-    let span = Span { start: 42, end: 100 };
+    let span = Span {
+        start: 42,
+        end: 100,
+    };
     let copied = span;
     let cloned = span.clone();
 
@@ -44,7 +47,10 @@ fn test_span_boundary_values() {
     assert_eq!(zero_span.start, 0);
     assert_eq!(zero_span.end, 0);
 
-    let max_span = Span { start: u32::MAX - 1, end: u32::MAX };
+    let max_span = Span {
+        start: u32::MAX - 1,
+        end: u32::MAX,
+    };
     assert_eq!(max_span.start, u32::MAX - 1);
     assert_eq!(max_span.end, u32::MAX);
 }

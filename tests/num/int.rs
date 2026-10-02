@@ -15,10 +15,7 @@ fn test_int_literal_creation_with_all_suffixes() {
     ];
 
     for (suffix, val) in suffixes {
-        let lit = IntLiteral {
-            value: val,
-            suffix,
-        };
+        let lit = IntLiteral { value: val, suffix };
         assert_eq!(lit.value, val);
         assert_eq!(lit.suffix, suffix);
     }
@@ -26,10 +23,22 @@ fn test_int_literal_creation_with_all_suffixes() {
 
 #[test]
 fn test_int_literal_equality() {
-    let lit_a = IntLiteral { value: 42, suffix: IntSuffix::U32 };
-    let lit_b = IntLiteral { value: 42, suffix: IntSuffix::U32 };
-    let lit_diff_val = IntLiteral { value: 43, suffix: IntSuffix::U32 };
-    let lit_diff_suffix = IntLiteral { value: 42, suffix: IntSuffix::I32 };
+    let lit_a = IntLiteral {
+        value: 42,
+        suffix: IntSuffix::U32,
+    };
+    let lit_b = IntLiteral {
+        value: 42,
+        suffix: IntSuffix::U32,
+    };
+    let lit_diff_val = IntLiteral {
+        value: 43,
+        suffix: IntSuffix::U32,
+    };
+    let lit_diff_suffix = IntLiteral {
+        value: 42,
+        suffix: IntSuffix::I32,
+    };
 
     assert_eq!(lit_a, lit_b);
     assert_ne!(lit_a, lit_diff_val);
@@ -38,7 +47,10 @@ fn test_int_literal_equality() {
 
 #[test]
 fn test_int_literal_clone_and_copy() {
-    let lit = IntLiteral { value: 100, suffix: IntSuffix::I64 };
+    let lit = IntLiteral {
+        value: 100,
+        suffix: IntSuffix::I64,
+    };
     let copied = lit;
     let cloned = lit.clone();
 
@@ -48,7 +60,10 @@ fn test_int_literal_clone_and_copy() {
 
 #[test]
 fn test_int_literal_debug_format() {
-    let lit = IntLiteral { value: 50, suffix: IntSuffix::U8 };
+    let lit = IntLiteral {
+        value: 50,
+        suffix: IntSuffix::U8,
+    };
     let formatted = format!("{:?}", lit);
     assert!(formatted.contains("IntLiteral"));
     assert!(formatted.contains("value: 50"));
@@ -57,12 +72,21 @@ fn test_int_literal_debug_format() {
 
 #[test]
 fn test_int_literal_boundary_values() {
-    let zero = IntLiteral { value: 0, suffix: IntSuffix::None };
+    let zero = IntLiteral {
+        value: 0,
+        suffix: IntSuffix::None,
+    };
     assert_eq!(zero.value, 0);
 
-    let max_val = IntLiteral { value: i64::MAX, suffix: IntSuffix::I64 };
+    let max_val = IntLiteral {
+        value: i64::MAX,
+        suffix: IntSuffix::I64,
+    };
     assert_eq!(max_val.value, i64::MAX);
 
-    let min_val = IntLiteral { value: i64::MIN, suffix: IntSuffix::I64 };
+    let min_val = IntLiteral {
+        value: i64::MIN,
+        suffix: IntSuffix::I64,
+    };
     assert_eq!(min_val.value, i64::MIN);
 }

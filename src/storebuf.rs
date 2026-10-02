@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 pub struct StoreBuf {
     pub path: PathBuf,
-    text: String
+    text: String,
 }
 
 impl StoreBuf {
@@ -13,10 +13,10 @@ impl StoreBuf {
         let contents = fs::read_to_string(&buf)?;
         Ok(StoreBuf {
             path: buf,
-            text: contents
+            text: contents,
         })
     }
-    
+
     pub fn text(&self) -> &str {
         &self.text
     }

@@ -1,11 +1,16 @@
-use lasso::Rodeo;
-use logos::Logos;
 use Language::num::float::{FloatLiteral, FloatSuffix};
 use Language::num::int::{IntLiteral, IntSuffix};
 use Language::token::{Extras, Token};
+use lasso::Rodeo;
+use logos::Logos;
 
 fn lex(input: &str) -> (Vec<Token>, Rodeo) {
-    let mut lex = Token::lexer_with_extras(input, Extras { rodeo: Rodeo::default() });
+    let mut lex = Token::lexer_with_extras(
+        input,
+        Extras {
+            rodeo: Rodeo::default(),
+        },
+    );
     let mut tokens = Vec::new();
     while let Some(res) = lex.next() {
         tokens.push(res.expect("unexpected token lexing error"));
@@ -14,7 +19,12 @@ fn lex(input: &str) -> (Vec<Token>, Rodeo) {
 }
 
 fn lex_raw(input: &str) -> Vec<Result<Token, ()>> {
-    let lexer = Token::lexer_with_extras(input, Extras { rodeo: Rodeo::default() });
+    let lexer = Token::lexer_with_extras(
+        input,
+        Extras {
+            rodeo: Rodeo::default(),
+        },
+    );
     lexer.collect()
 }
 
@@ -139,15 +149,42 @@ fn test_integer_literals_with_all_suffixes() {
     assert_eq!(
         tokens,
         vec![
-            Token::IntLit(IntLiteral { value: 42, suffix: IntSuffix::None }),
-            Token::IntLit(IntLiteral { value: 255, suffix: IntSuffix::U8 }),
-            Token::IntLit(IntLiteral { value: 65535, suffix: IntSuffix::U16 }),
-            Token::IntLit(IntLiteral { value: 4294967295, suffix: IntSuffix::U32 }),
-            Token::IntLit(IntLiteral { value: 1000, suffix: IntSuffix::U64 }),
-            Token::IntLit(IntLiteral { value: 127, suffix: IntSuffix::I8 }),
-            Token::IntLit(IntLiteral { value: 32767, suffix: IntSuffix::I16 }),
-            Token::IntLit(IntLiteral { value: 2147483647, suffix: IntSuffix::I32 }),
-            Token::IntLit(IntLiteral { value: 9999, suffix: IntSuffix::I64 }),
+            Token::IntLit(IntLiteral {
+                value: 42,
+                suffix: IntSuffix::None
+            }),
+            Token::IntLit(IntLiteral {
+                value: 255,
+                suffix: IntSuffix::U8
+            }),
+            Token::IntLit(IntLiteral {
+                value: 65535,
+                suffix: IntSuffix::U16
+            }),
+            Token::IntLit(IntLiteral {
+                value: 4294967295,
+                suffix: IntSuffix::U32
+            }),
+            Token::IntLit(IntLiteral {
+                value: 1000,
+                suffix: IntSuffix::U64
+            }),
+            Token::IntLit(IntLiteral {
+                value: 127,
+                suffix: IntSuffix::I8
+            }),
+            Token::IntLit(IntLiteral {
+                value: 32767,
+                suffix: IntSuffix::I16
+            }),
+            Token::IntLit(IntLiteral {
+                value: 2147483647,
+                suffix: IntSuffix::I32
+            }),
+            Token::IntLit(IntLiteral {
+                value: 9999,
+                suffix: IntSuffix::I64
+            }),
         ]
     );
 }
@@ -160,10 +197,22 @@ fn test_float_literals_with_suffixes() {
     assert_eq!(
         tokens,
         vec![
-            Token::FloatLit(FloatLiteral { value: 3.14, suffix: FloatSuffix::None }),
-            Token::FloatLit(FloatLiteral { value: 1.5, suffix: FloatSuffix::F32 }),
-            Token::FloatLit(FloatLiteral { value: 2.0, suffix: FloatSuffix::F64 }),
-            Token::FloatLit(FloatLiteral { value: 0.0, suffix: FloatSuffix::None }),
+            Token::FloatLit(FloatLiteral {
+                value: 3.14,
+                suffix: FloatSuffix::None
+            }),
+            Token::FloatLit(FloatLiteral {
+                value: 1.5,
+                suffix: FloatSuffix::F32
+            }),
+            Token::FloatLit(FloatLiteral {
+                value: 2.0,
+                suffix: FloatSuffix::F64
+            }),
+            Token::FloatLit(FloatLiteral {
+                value: 0.0,
+                suffix: FloatSuffix::None
+            }),
         ]
     );
 }
@@ -201,7 +250,13 @@ fn test_skipping_whitespace_and_comments() {
         _ => panic!("expected Ident"),
     }
     assert_eq!(tokens[2], Token::Assign);
-    assert_eq!(tokens[3], Token::IntLit(IntLiteral { value: 10, suffix: IntSuffix::None }));
+    assert_eq!(
+        tokens[3],
+        Token::IntLit(IntLiteral {
+            value: 10,
+            suffix: IntSuffix::None
+        })
+    );
     assert_eq!(tokens[4], Token::Semicolon);
 }
 
@@ -222,7 +277,10 @@ fn test_invalid_tokens_error_handling() {
     let raw_tokens = lex_raw(input);
 
     let has_error = raw_tokens.iter().any(|res| res.is_err());
-    assert!(has_error, "lexer should report errors for invalid characters like $ or `");
+    assert!(
+        has_error,
+        "lexer should report errors for invalid characters like $ or `"
+    );
 }
 
 #[test]

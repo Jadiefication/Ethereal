@@ -1,16 +1,16 @@
-use lasso::{Rodeo, Spur};
 use crate::num::float::{FloatLiteral, FloatSuffix};
-use crate::num::int::IntSuffix;
-use logos::Logos;
 use crate::num::int::IntLiteral;
+use crate::num::int::IntSuffix;
+use lasso::{Rodeo, Spur};
+use logos::Logos;
 
 pub struct Extras {
-    pub rodeo: Rodeo
+    pub rodeo: Rodeo,
 }
 
 #[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Skip whitespace automatically
-#[logos(skip(r"//[^\n]*", allow_greedy = true))]   // Skip single-line comments
+#[logos(skip(r"//[^\n]*", allow_greedy = true))] // Skip single-line comments
 #[logos(extras = Extras)]
 pub enum Token {
     // Keywords

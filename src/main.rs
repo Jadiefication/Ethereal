@@ -1,9 +1,9 @@
-use std::env;
-use std::io::Error;
-use lasso::Rodeo;
-use logos::Logos;
 use Language::storebuf::StoreBuf;
 use Language::token::{Extras, Token};
+use lasso::Rodeo;
+use logos::Logos;
+use std::env;
+use std::io::Error;
 
 fn main() -> Result<(), Error> {
     let path = env::args().nth(1).unwrap();
@@ -13,12 +13,15 @@ fn main() -> Result<(), Error> {
         eprintln!("Error reading file '{}': {}", path, err)
     } else if let Ok(buffer) = buf {
         let tokens: Vec<Token> = Token::lexer_with_extras(
-            buffer.text(), Extras { rodeo: Rodeo::default() }
+            buffer.text(),
+            Extras {
+                rodeo: Rodeo::default(),
+            },
         )
-            .collect::<Result<_, _>>().unwrap();
+        .collect::<Result<_, _>>()
+        .unwrap();
         dbg!(tokens);
     }
-
 
     println!("Hello, world!");
     Ok(())

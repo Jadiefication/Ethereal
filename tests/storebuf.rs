@@ -1,8 +1,8 @@
+use Language::storebuf::StoreBuf;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use Language::storebuf::StoreBuf;
 
 struct TempTestFile {
     path: PathBuf,
@@ -51,7 +51,8 @@ fn test_storebuf_open_happy_path() {
 fn test_storebuf_open_empty_file() {
     let temp_file = TempTestFile::new("storebuf_empty", "");
 
-    let store_buf = StoreBuf::open(temp_file.path()).expect("StoreBuf::open on empty file should succeed");
+    let store_buf =
+        StoreBuf::open(temp_file.path()).expect("StoreBuf::open on empty file should succeed");
     assert_eq!(store_buf.text(), "");
     assert_eq!(store_buf.path, temp_file.path());
 }
@@ -61,7 +62,8 @@ fn test_storebuf_open_multiline_unicode_content() {
     let content = "fn greet() {\n    \"Hello, 世界! 🚀\"\n}\n";
     let temp_file = TempTestFile::new("storebuf_unicode", content);
 
-    let store_buf = StoreBuf::open(temp_file.path()).expect("StoreBuf::open should succeed with unicode");
+    let store_buf =
+        StoreBuf::open(temp_file.path()).expect("StoreBuf::open should succeed with unicode");
     assert_eq!(store_buf.text(), content);
 }
 
@@ -69,12 +71,18 @@ fn test_storebuf_open_multiline_unicode_content() {
 fn test_storebuf_open_nonexistent_file_returns_error() {
     let non_existent = std::env::temp_dir().join("definitely_non_existent_file_12345.xyz");
     let result = StoreBuf::open(&non_existent);
-    assert!(result.is_err(), "StoreBuf::open should return Err for non-existent file");
+    assert!(
+        result.is_err(),
+        "StoreBuf::open should return Err for non-existent file"
+    );
 }
 
 #[test]
 fn test_storebuf_open_directory_returns_error() {
     let dir = std::env::temp_dir();
     let result = StoreBuf::open(&dir);
-    assert!(result.is_err(), "StoreBuf::open should return Err when path is a directory");
+    assert!(
+        result.is_err(),
+        "StoreBuf::open should return Err when path is a directory"
+    );
 }
