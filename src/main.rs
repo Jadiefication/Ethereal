@@ -1,14 +1,9 @@
 use std::env;
-use crate::storebuf::StoreBuf;
 use std::io::Error;
 use lasso::Rodeo;
 use logos::Logos;
-use crate::token::{Extras, Token};
-
-pub mod token;
-pub mod span;
-pub mod storebuf;
-pub mod num;
+use Language::storebuf::StoreBuf;
+use Language::token::{Extras, Token};
 
 fn main() -> Result<(), Error> {
     let path = env::args().nth(1).unwrap();

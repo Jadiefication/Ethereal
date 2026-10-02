@@ -141,12 +141,12 @@ pub enum Token {
 
     #[regex(r"[0-9]+\.[0-9]+(?:f(?:32|64))?", |lex| {
         let slice = lex.slice();
-        let end = slice.find(|c: char| !c.is_ascii_digit()).unwrap_or(slice.len());
+        let end = slice.find('f').unwrap_or(slice.len());
 
         let value = slice[..end].parse::<f64>().unwrap();
 
         let suffix = match &slice[end..] {
-            "f32"  => FloatSuffix::F32,
+            "f32" => FloatSuffix::F32,
             "f64" => FloatSuffix::F64,
             _     => FloatSuffix::None,
         };
