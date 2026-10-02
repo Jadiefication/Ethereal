@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+lasso = "0.7.3"
+logos = "0.16.1"
+miette = "7.6.0"
+thiserror = "2.0.21"
