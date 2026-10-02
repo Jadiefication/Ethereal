@@ -1,4 +1,4 @@
 pub mod num;
-pub mod span;
+pub mod spanned_token;
 pub mod storebuf;
 pub mod token;

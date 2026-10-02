@@ -1,3 +1,4 @@
+use Language::spanned_token::SpannedToken;
 use Language::storebuf::StoreBuf;
 use Language::token::{Extras, Token};
 use lasso::Rodeo;
@@ -12,15 +13,21 @@ fn main() -> Result<(), Error> {
     if let Err(err) = &buf {
         eprintln!("Error reading file '{}': {}", path, err)
     } else if let Ok(buffer) = buf {
-        let tokens: Vec<Token> = Token::lexer_with_extras(
+        let mut tokens: Vec<SpannedToken> = Vec::new();
+        let mut lexer = Token::lexer_with_extras(
             buffer.text(),
             Extras {
                 rodeo: Rodeo::default(),
             },
-        )
-        .collect::<Result<_, _>>()
-        .unwrap();
-        dbg!(tokens);
+        );
+
+        while let Some(raw_token) = lexer.next() {
+            let span = lexer.span();
+            match raw_token {
+                Ok(token) => tokens.push(SpannedToken { token, span }),
+                Err(err) => eprintln!("Error at {}, {} for {path}", span.start, span.end),
+            }
+        }
     }
 
     println!("Hello, world!");
