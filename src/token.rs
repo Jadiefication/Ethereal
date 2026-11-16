@@ -8,7 +8,7 @@ pub struct Extras {
     pub rodeo: Rodeo,
 }
 
-#[derive(Logos, Debug, Clone, PartialEq)]
+#[derive(Logos, Debug, Clone, PartialEq, Default)]
 #[logos(skip r"[ \t\n\f]+")] // Skip whitespace automatically
 #[logos(skip(r"//[^\n]*", allow_greedy = true))] // Skip single-line comments
 #[logos(extras = Extras)]
@@ -46,6 +46,12 @@ pub enum Token {
     True,
     #[token("false")]
     False,
+    #[token("as")]
+    As,
+    #[token("this")]
+    This,
+    #[token("static")]
+    Static,
 
     // Prefixes & Operators
     #[token("#")]
@@ -82,6 +88,10 @@ pub enum Token {
     Lt,
     #[token(">")]
     Gt,
+    #[token("<=")]
+    Le,
+    #[token(">=")]
+    Ge,
     #[token("&&")]
     And,
     #[token("||")]
@@ -159,4 +169,7 @@ pub enum Token {
         lex.extras.rodeo.get_or_intern(lex.slice())
     })]
     StringLit(Spur),
+    
+    #[default]
+    Eof
 }

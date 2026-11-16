@@ -1,106 +1,209 @@
 import "std::io.et"
 import "std::gpu.et"
-// Clean GPU Struct representing a pair of 64-bit vector elements
-// Enforces zero byte-padding, strictly compliant with @gpu layout rules
-struct #VectorPair {
-    a: @gpu::f64,
-    b: @gpu::f64,
+
+// ============================================================================
+// GPU STRUCT & METAPROGRAMMING DEFINITIONS
+// ============================================================================
+
+// SYNTAX RULE 1: The '#' tag marks types intended for GPU VRAM layout.
+// SYNTAX RULE 2: '@gpu::f64' guarantees a strict C/std430 byte layout (16-byte aligned vector strides)
+// with zero hidden runtime object headers or heap metadata.
+struct #Body {
+    pos_x: @gpu::f64,
+    pos_y: @gpu::f64,
+    vel_x: @gpu::f64,
+    vel_y: @gpu::f64,
+    mass:  @gpu::f64,
 }
-impl #VectorPair {
+
+impl #Body {
+    // SYNTAX RULE 3: Primitive type macro (@f64) enforces the return signature at compile time.
     @f64
-    fn multiply_elements() {
-        this.a * this.b
+    fn kinetic_energy() {
+        // SYNTAX RULE 4: 'this' explicitly accesses member fields in struct methods.
+        0.5f64 * this.mass * (this.vel_x * this.vel_x + this.vel_y * this.vel_y)
     }
-    @#VectorPair
-    @f64(a, b)
-    static::fn new(a, b) {
-        #VectorPair { a: a, b: b }
+
+    // SYNTAX RULE 5: Macro overloading (@f64(px, py...), @#Body) enforces argument types
+    // at compile time, keeping the function argument signature clean and declarative.
+    @#Body
+    @f64(px, py, vx, vy, m)
+    static::fn new(px, py, vx, vy, m) {
+        #Body {
+            pos_x: px,
+            pos_y: py,
+            vel_x: vx,
+            vel_y: vy,
+            mass: m
+        }
     }
 }
-// Custom Macro attribute targeting the kernel.
-// If the macro pass leaves the TokenStream un-mutated, it defaults to returning f64.
+
+// SYNTAX RULE 6 (GENERICS): Generics do NOT use runtime vtables or angle brackets.
+// 1. Define 'T' using '@std::type(T, Add)'.
+// 2. Bind 'T' to specific arguments using '@T(a, b)'.
+// The compiler expands and monomorphizes the function for every concrete type used at compile time.
+@std::type(T, Add)
+@T(a, b)
+fn accumulate_generic(a, b) {
+    a + b
+}
+
+// ============================================================================
+// GPU KERNEL DEFINITION
+// ============================================================================
+
+// SYNTAX RULE 7: Custom Macro Attribute (@return_annotation::f64).
+// Inspects the function TokenStream at compile time. If the macro leaves the AST un-mutated,
+// it safely defaults the return type to 'f64'.
+//
+// SYNTAX RULE 8: Type Macros (@f64, @u32, @#Body(#bodies)) enforce types for kernel parameters.
+//
+// SYNTAX RULE 9: 'kernel(g_id, l_id, w_id)' binds built-in hardware thread identifiers:
+// - g_id: Global Invocation ID across the entire grid
+// - l_id: Local Thread Index inside the workgroup
+// - w_id: Workgroup Index
 @return_annotation::f64
-kernel(g_id, l_id, w_id) fn dot_product_kernel(
-    #pairs: @storage []#VectorPair,
-    #partial_sums: @storage []f64,
-    val vector_length: u32
+@f64(delta_time)
+@u32(total_bodies)
+@#Body(#bodies)
+kernel(g_id, l_id, w_id) fn nbody_simulation_kernel(
+    // SYNTAX RULE 10: Address space annotations (@storage, @workgroup, @uniform)
+    // explicitly specify where memory buffers reside on physical GPU hardware.
+    #bodies: @storage [],
+    val delta_time,
+    val total_bodies
 ) {
     val global_idx = g_id.x
     val local_idx = l_id.x
-    // Allocate high-speed Workgroup Shared VRAM (256 threads per workgroup)
-    var #shared_cache: @workgroup [256]f64
-    // Step 1: Element-wise multiply via explicit method call
-    // Uses mandatory parens so `pair` pipes into `multiply_elements()` as `this`
-    val initial_prod = if (global_idx < vector_length) {
-        val pair = #pairs[global_idx]
-        pair |> pair.multiply_elements()
-    } else {
-        0.0f64
+
+    // SYNTAX RULE 11: Declaring high-speed Workgroup Shared Memory.
+    // Lives in low-latency L1/SLM cache shared by all threads in the same workgroup.
+    var #shared_cache: @workgroup [256]#Body
+
+    // SYNTAX RULE 12: Immutable bindings use 'val'.
+    // Literals on GPU require explicit type suffixes (e.g. 0.0f64) to prevent VRAM buffer misalignment.
+    var force_x: f64 = 0.0f64
+    var force_y: f64 = 0.0f64
+
+    // Cache current thread's body into shared VRAM space
+    if (global_idx < total_bodies) {
+        #bodies[global_idx] |> #shared_cache[local_idx]
     }
-    // Pipe initial product into workgroup shared memory
-    initial_prod |> #shared_cache[local_idx]
-    // Synchronize all threads within the workgroup before starting tree reduction
+
+    // SYNTAX RULE 13: '#barrier()' is a hardware-level execution and memory sync statement.
+    // Halts all workgroup threads until every thread completes its shared memory write.
     #barrier();
-    // Step 2: In-place Parallel Tree Reduction in Shared Memory
-    // Shrinks 256 elements down to 1 in O(log2 N) workgroup steps
-    var #stride: u32 = 128u32
-    while (#stride > 0u32) {
-        if (local_idx < #stride) {
-            val neighbor_val = #shared_cache[local_idx + #stride]
-            val current_val = #shared_cache[local_idx]
 
-            // Re-assignment requires mandatory piping
-            current_val + neighbor_val |> #shared_cache[local_idx]
-        }
+    // Compute gravitational pull from all bodies in local workgroup cache
+    for (i in 0..256u32) {
+        val other = #shared_cache[i]
+        val dx = other.pos_x - #bodies[global_idx].pos_x
+        val dy = other.pos_y - #bodies[global_idx].pos_y
+        val dist_sq = (dx * dx) + (dy * dy) + 0.001f64 // Softening factor
 
-        // Wait for all threads to finish updating their local cache slot
-        #barrier();
+        val f = (6.674e-11f64 * #bodies[global_idx].mass * other.mass) / dist_sq
+        val inv_dist = 1.0f64 / dist_sq.sqrt()
 
-        // Reduce stride using right shift via functional pipe
-        #stride / 2u32 |> #stride
+        // SYNTAX RULE 14: Re-assignment MUST use piping ('|>'). Direct '=' is only allowed
+        // during initial variable declaration.
+        force_x + (f * dx * inv_dist) |> force_x
+        force_y + (f * dy * inv_dist) |> force_y
     }
-    // Step 3: Thread 0 writes the workgroup's total sum to global VRAM
-    if (local_idx == 0u32) {
-        #shared_cache[0] |> #partial_sums[w_id.x]
+
+    // Integrate forces and update state
+    if (global_idx < total_bodies) {
+        val current_body = #bodies[global_idx]
+
+        val new_vx = current_body.vel_x + (force_x / current_body.mass) * delta_time
+        val new_vy = current_body.vel_y + (force_y / current_body.mass) * delta_time
+
+        // SYNTAX RULE 15: Method Calls vs. Field Stores disambiguation:
+        // - 'val |> target.field' is a field store.
+        // - 'val |> target.method()' passes 'val' as 'this' because parentheses () are present.
+        new_vx |> #bodies[global_idx].vel_x
+        new_vy |> #bodies[global_idx].vel_y
+
+        current_body.pos_x + (new_vx * delta_time) |> #bodies[global_idx].pos_x
+        current_body.pos_y + (new_vy * delta_time) |> #bodies[global_idx].pos_y
     }
 }
-// Host CPU Orchestrator Program
-pub fn main() {
-    val N = 1048576u32 // 1 Million elements
-    val workgroup_size = 256u32
-    val grid_size = N / workgroup_size // 4096 workgroups
-    // Allocate and initialize input vectors on Host CPU
-    var host_pairs = []#VectorPair
-    for (i in 0..N) {
-        val pair = #VectorPair::new(1.5f64, 2.0f64)
-        pair |> host_pairs.push()
+
+// ============================================================================
+// HOST CPU SIDE (Orchestration, Sequential Analytics, & Pipeline Controls)
+// ============================================================================
+
+// SYNTAX RULE 16: Standard CPU Functions use regular 'fn' signatures.
+// 'pub' sets visibility across module boundaries.
+@f64
+pub fn cpu_fallback_energy_audit(bodies: []#Body) {
+    var total_energy: f64 = 0.0f64
+
+    for (b in bodies) {
+        // SYNTAX RULE 17: Piping into method call with explicit '()'.
+        // Passes 'b' as 'this' into kinetic_energy().
+        val e = b |> b.kinetic_energy()
+
+        // Accumulate using the generic macro function monomorphized for f64
+        accumulate_generic(total_energy, e) |> total_energy
     }
-    // Upload host vector buffer to GPU VRAM
-    val gpu_pairs_buffer = host_pairs |> gpu::upload()
-    val gpu_out_buffer = gpu::allocate_storage[f64](grid_size)
-    io::println("Launching GPU Parallel Reduction Kernel...")
-    // ASYNC DISPATCH: Non-blocking enqueue. Returns a GpuFuture handle instantly.
-    #dot_product_kernel.dispatch(grid = [grid_size, 1, 1])(
-        gpu_pairs_buffer,
-        gpu_out_buffer,
+
+    total_energy
+}
+
+pub fn main() {
+    val N = 1024u32
+    val delta_time = 0.01667f64 // 60 FPS timestep
+
+    io::println("Initializing N-Body system on CPU...")
+
+    // Allocate host CPU side array
+    var host_bodies = []#Body
+    for (i in 0..N) {
+        val body = #Body::new(
+            i as f64 * 1.5f64,
+            i as f64 * 2.0f64,
+            0.0f64,
+            0.0f64,
+            100.0f64
+        )
+        body |> host_bodies.push()
+    }
+
+    // Run baseline CPU audit before offloading to GPU
+    val initial_energy = cpu_fallback_energy_audit(host_bodies)
+    "Initial System Kinetic Energy (CPU Calculated): " |> io::print()
+    initial_energy |> io::println()
+
+    // SYNTAX RULE 18: Explicit data transfer from CPU memory space to GPU VRAM space.
+    val gpu_bodies_buffer = host_bodies |> gpu::upload()
+
+    io::println("Dispatching GPGPU Compute Kernel...")
+
+    // SYNTAX RULE 19: ASYNC DISPATCH (No trailing '|')
+    // Launches the GPU kernel asynchronously and returns a 'GpuFuture' handle instantly.
+    // CPU execution does not block and continues immediately.
+    #nbody_simulation_kernel.dispatch(grid = [4, 1, 1])(
+        gpu_bodies_buffer,
+        delta_time,
         N
-    ) |> val async_handle
-    // CPU can perform arbitrary concurrent computations here...
-    io::println("CPU orchestrator active while GPU reduces memory...")
-    // SYNC DISPATCH: Trailing '|' issues a host CPU fence-wait, stalling
-    // until GPU execution completes, then piping mapped output directly.
-    #dot_product_kernel.dispatch(grid = [grid_size, 1, 1])(
-        gpu_pairs_buffer,
-        gpu_out_buffer,
+    ) |> val async_gpu_handle
+
+    // Host CPU performs concurrent work while the GPU runs parallel workgroups in background
+    io::println("CPU is executing concurrent orchestration tasks...")
+
+    // SYNTAX RULE 20: SYNC DISPATCH (Trailing '|')
+    // The single pipe '|' forces a CPU host-fence wait, stalling the CPU
+    // until GPU execution finishes and memory flushes back to host memory space.
+    #nbody_simulation_kernel.dispatch(grid = [4, 1, 1])(
+        gpu_bodies_buffer,
+        delta_time,
         N
     ) |
-      |> val reduced_partials
-    // Final CPU-side aggregation of workgroup partial sums
-    var final_dot_product: f64 = 0.0f64
-    for (sum in reduced_partials) {
-        final_dot_product + sum |> final_dot_product
-    }
-    // Output final scalar result
-    "Final Dot Product Result: " |> io::print()
-    final_dot_product |> io::println()
+      |> val updated_gpu_bodies
+
+    // Download updated state back to CPU land and re-audit energy
+    val final_energy = cpu_fallback_energy_audit(updated_gpu_bodies)
+    "Updated System Kinetic Energy (Post-GPU Compute): " |> io::print()
+    final_energy |> io::println()
 }

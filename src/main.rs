@@ -25,9 +25,20 @@ fn main() -> Result<(), Error> {
             let span = lexer.span();
             match raw_token {
                 Ok(token) => tokens.push(SpannedToken { token, span }),
-                Err(err) => eprintln!("Error at {}, {} for {path}", span.start, span.end),
+                Err(err) => eprintln!("Error {:?} at {}, {} for {path}", err, span.start, span.end),
             }
         }
+
+        let eof_span = if let Some(last_token) = tokens.last() {
+            last_token.span.end..last_token.span.end
+        } else {
+            0..0
+        };
+
+        tokens.push(SpannedToken {
+            token: Token::Eof,
+            span: eof_span,
+        });
     }
 
     println!("Hello, world!");
